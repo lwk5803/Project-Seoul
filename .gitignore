@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+*.log
+
+# Env vars (secrets)
+.env
+.env.local
+.env.*.local
+
+# Node / Next.js (frontend, 이후 추가 예정)
+node_modules/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 개인 메모/민감정보 (커밋 금지)
+Project-Seoul 관련 내용.txt
+Claude outputs/
