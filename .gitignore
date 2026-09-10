@@ -26,5 +26,7 @@ out/
 Thumbs.db
 
 # 개인 메모/민감정보 (커밋 금지)
+# 개발 로그와 블로그 초안은 docs/devlog/ 에 저장하며 git으로 추적한다.
+# 아래 폴더는 순수 개인 메모 전용이다.
 Project-Seoul 관련 내용.txt
 Claude outputs/
