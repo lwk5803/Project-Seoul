@@ -1,36 +1,32 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Project-Seoul 프론트엔드
 
-## Getting Started
+[Next.js](https://nextjs.org)(App Router) + TypeScript + Tailwind CSS 기반으로 만든 프론트엔드 프로젝트입니다. `create-next-app`으로 초기 골격을 생성했습니다.
 
-First, run the development server:
+## 시작하기
+
+개발 서버 실행:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+브라우저에서 [http://localhost:3000](http://localhost:3000) 접속하면 결과를 확인할 수 있습니다.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`src/app/page.tsx` 파일을 수정하면 저장할 때마다 화면이 자동으로 갱신됩니다.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 빌드 확인
 
-## Learn More
+```bash
+npm run build
+```
 
-To learn more about Next.js, take a look at the following resources:
+정상적으로 빌드가 되는지 확인할 때 사용합니다.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 폴더 구조 (초기 상태)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- `src/app/` — 라우트(페이지) 및 레이아웃
+- `public/` — 정적 파일(이미지, 아이콘 등)
 
-## Deploy on Vercel
+## 참고
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- 폰트는 외부(구글 폰트) 요청 없이 시스템 폰트를 사용하도록 설정되어 있습니다 (네트워크 제한 환경에서도 빌드가 안정적으로 되도록 하기 위함).
