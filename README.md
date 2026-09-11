@@ -16,6 +16,9 @@
 - [API 계약서](docs/04-API-계약서.md) ← 프론트/백엔드 공통 약속
 - [AI 에이전트 설계](docs/05-에이전트-설계.md)
 - [개발 로드맵](docs/06-개발-로드맵.md)
+- [세션별 작업 지시서](docs/07-세션별-작업지시서.md)
+- [확정 필요 결정사항](docs/08-확정필요-결정사항.md)
 
 ## 개발 로그
-작업 단계별 진행 내용은 [티스토리 블로그](https://wongang.tistory.com/)에 정리합니다.
+작업 단계별 기록은 [`docs/devlog/`](docs/devlog/README.md)에 쌓이고,
+이를 다듬은 글은 [티스토리 블로그](https://wongang.tistory.com/)에 정리합니다.

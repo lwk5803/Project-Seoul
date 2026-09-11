@@ -4,7 +4,7 @@
 - **프로젝트 명:** AI TRPG Game Master (현대판 대한민국 배경)
 - **목적:** LangGraph, FastAPI, Next.js, Supabase를 활용한 멀티 에이전트 텍스트 RPG 웹/앱 서비스 구축
 - **핵심 기술 스택:**
-  - Frontend: Next.js (App Router), TypeScript, Tailwind CSS + Shadcn UI, Vercel AI SDK
+  - Frontend: Next.js 16 (App Router), TypeScript, Tailwind CSS + Shadcn UI, Vercel AI SDK (※ 게임 행동 스트림에는 쓰지 않음 — 자체 SSE 규격, `docs/01` 8장)
   - Backend: Python 3.10+, FastAPI, LangChain & LangGraph, Pydantic v2
   - DB & Auth: Supabase (PostgreSQL), Supabase Auth, pgvector
   - Infra/DevOps: Vercel, Render/Railway, Git/GitHub, LangSmith
@@ -44,13 +44,17 @@
 - **개발 로그 작성 시점 규칙 (모든 작업 세션 공통, 반드시 준수):**
   - 로드맵의 한 Step이나 디버깅 한 건이 끝나면 **그 자리에서 즉시** 개발 로그를 작성한다.
   - **여러 단계를 몰아서 한 번에 쓰지 않는다.** 시간이 지나면 "왜 그렇게 짰는지"를 잊어버려서 기록의 가치가 사라진다.
-  - 작성 순서는 항상 **① 동작 확인 → ② 개발 로그 작성 → ③ 커밋** 이다. 커밋 전에 기록을 먼저 남긴다.
+  - 작성 순서는 항상 **① 동작 확인 → ② 개발 로그 작성 → ③ 커밋 + push** 이다. 커밋 전에 기록을 먼저 남긴다.
   - 사용자가 따로 요청하지 않아도 알아서 작성한다. (요청을 기다리지 않는다)
 
 - **저장 위치 및 파일명 규칙:**
   - 개발 로그와 블로그 초안은 모두 **`docs/devlog/` 폴더에 저장**한다. (git으로 추적되어 데스크톱·노트북 어디서든 이어서 볼 수 있다)
-  - 개발 로그: `docs/devlog/<YYYY-MM-DD>_개발로그_<단계번호>단계-<주제>.txt`
+  - 개발 로그: `docs/devlog/<YYYY-MM-DD>_개발로그_<단계번호>단계-<영역>-<주제>.txt`
+    - 영역: `백엔드` / `프론트` / `아키텍처`. 로드맵 작업이면 주제 앞에 `Step<번호>-`를 붙인다.
+    - 예: `2026-09-12_개발로그_5단계-백엔드-Step1-DB스키마.txt`
   - 블로그 초안: `docs/devlog/<YYYY-MM-DD>_티스토리_블로그초안_<단계번호>단계-<주제>.md`
+  - **단계번호 = `docs/devlog/README.md` 목록의 마지막 번호 + 1** (전체 일련번호. 로드맵 Step 번호와 다름)
+    - 한 Step에 백엔드·프론트 로그가 따로 생기면 번호도 따로 받는다. (예: 6단계-백엔드-Step2, 7단계-프론트-Step2)
   - 두 파일은 **반드시 분리**해서 만든다. (하나로 합치지 않는다)
   - 파일을 추가하면 `docs/devlog/README.md`의 목록 표에 한 줄 추가한다.
   - `Claude outputs/` 폴더는 `.gitignore`로 막힌 **개인 메모 전용**이다. 개발 로그를 여기에 저장하지 않으며, 이 폴더의 파일은 절대 `git add` 하지 않는다.
@@ -80,3 +84,6 @@
   - 새 컴퓨터에서는 `.env.example`을 복사한 뒤 Supabase 대시보드에서 값을 다시 채운다. 비밀키를 메신저나 메일로 옮기지 않는다.
   - 라이브러리는 옮기지 않고 `pip install -r requirements.txt` / `npm install` 로 각 컴퓨터에서 새로 설치한다.
 - 프론트엔드 / 백엔드 / 아키텍처 세션은 **한 번에 하나만** 작업한다. (동시에 커밋하면 충돌)
+- git 명령은 **항상 프로젝트 루트(`Project-Seoul/`)에서** 실행한다. (`frontend/`·`backend/` 안에서 치지 않는다)
+- 세션에 GitHub 로그인이 안 되어 있거나 세션이 명령을 실행할 수 없으면, **사용자가 cmd에 그대로 붙여넣을 git 명령**(pull / add / commit / push)을 안내한다.
+- 커밋 전에 `git status`로 커밋 금지 파일(`.env`, `venv/`, `node_modules/`, `Claude outputs/`)이 섞이지 않았는지 확인한다.

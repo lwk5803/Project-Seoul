@@ -1,0 +1,146 @@
+[ 개발 로그 - 3단계 : 깃 병합 충돌 해결 및 Supabase API 키 마이그레이션 ]
+작성일: 2026-09-11
+작성 세션: 백엔드 구성 세션
+
+
+===================================
+1. 현재 단계 목표
+===================================
+
+이번 단계는 새로운 기능을 만든 단계가 아니라, "여러 명이 같은 집을
+동시에 고치다가 생긴 일"을 정리한 단계다.
+
+이 프로젝트는 노트북/데스크탑 두 대에서, 그리고 백엔드/아키텍처처럼
+역할이 다른 여러 세션에서 작업이 진행되고 있다. 그런데 아키텍처 세션이
+docs/ 설계 문서 8종과 CLAUDE.md, 프론트엔드 초기 골격을 먼저 깃에
+올려놓았고, 이 백엔드 세션은 그걸 모른 채 로컬에서 커밋 1개를 따로
+만들어둔 상태였다. 이 상태에서 git push를 하려니 "네 브랜치가
+원격보다 뒤처져 있다"는 충돌이 났다.
+
+목표는 두 가지였다:
+1) 이 충돌을 안전하게 풀어서 모든 작업을 한 줄기로 합치기
+2) 합쳐진 내용 중, 내 로컬 backend/.env 파일이 새 설정 코드와
+   맞지 않게 된 부분(Supabase 키 체계 변경)을 찾아서 고치기
+
+
+===================================
+2. 사용한 기술/핵심 개념 (비유 설명 포함)
+===================================
+
+- 깃 병합 충돌(merge conflict)이란?
+  같은 공책을 두 사람이 각자 집에 가져가서 다른 페이지에 낙서를 하고
+  다시 합치려는 상황과 같다. 대부분의 페이지는 안 겹쳐서 그냥 자동으로
+  합쳐지는데(자동 병합), 딱 한 페이지(frontend/README.md)를 둘 다
+  손댔다. 이 페이지만 "어느 쪽 내용을 남길지" 사람이 직접 골라줘야
+  한다.
+
+  이번 충돌난 파일은 frontend/README.md였다. 한쪽은 Next.js가 처음
+  만들어주는 기본 영어 설명글이었고, 다른 한쪽(아키텍처 세션이 만든
+  버전)은 한글로 다시 쓴 설명글이었다. CLAUDE.md에 "README는 100%
+  한글로 쓴다"는 규칙이 이미 정해져 있었으므로, 고민 없이 한글 버전을
+  남기는 쪽으로 판단했다. → 이 프로젝트처럼 "규칙 문서"가 미리
+  있으면, 충돌이 나도 사람 감(感)이 아니라 규칙에 따라 기계적으로
+  풀 수 있다.
+
+- Supabase의 API 키 체계 변경 (legacy → new)
+  Supabase가 예전에는 "anon key / service_role key"라는 두 종류의
+  열쇠를 줬는데, 최근에 "publishable key / secret key"라는 새
+  이름의 열쇠 체계로 바뀌었다. 이름만 바뀐 게 아니라 코드에서 읽는
+  변수 이름도 달라져야 한다.
+
+  비유하면, 예전에는 "손님용 열쇠 / 관리자용 열쇠"라고 부르던 걸
+  이제 "공개용 열쇠 / 비밀 열쇠"로 이름을 바꾼 것과 같다. 열쇠 자체의
+  역할(손님은 제한된 권한, 관리자는 전체 권한)은 똑같지만, 문패에
+  붙은 이름표가 바뀌었으니 자물쇠 설정 파일(.env)에 적힌 이름표도
+  새로 맞춰줘야 문이 열린다.
+
+  아키텍처 세션이 병합해 넣은 backend/app/core/config.py는 이미 새
+  이름(supabase_publishable_key, supabase_secret_key)을 읽도록
+  바뀌어 있었는데, 내 로컬 backend/.env 파일은 여전히 옛날 이름
+  (SUPABASE_ANON_KEY 등)으로 남아 있었다. 이대로 두면 서버를 켜는
+  순간 "설정값을 못 찾았다"는 에러가 났을 것이다. → 코드만 보고
+  "합쳐졌으니 끝"이라고 생각하면 안 되고, 코드가 기대하는 설정값과
+  내 로컬 비밀 파일(.env)이 실제로 맞는지 항상 다시 확인해야 한다는
+  걸 배웠다.
+
+- pydantic-settings로 실제 로딩 테스트하기
+  .env 파일을 고친 뒤, 눈으로 "이름 맞네" 하고 넘어가지 않고
+  config.py에 있는 것과 똑같은 Settings 클래스를 격리된 임시
+  공간에서 실제로 실행시켜 5개 필드가 전부 정상적으로 채워지는지
+  확인했다. 사람이 눈으로 스펠링을 확인하는 것보다, 실제 코드를
+  돌려서 "진짜로 읽히는지"를 확인하는 게 훨씬 믿을 수 있다.
+  (비유: 자물쇠에 열쇠를 눈으로 맞춰보는 것보다, 실제로 문을
+  열어보는 게 확실한 것과 같다.)
+
+
+===================================
+3. 작성/수정된 핵심 코드
+===================================
+
+[병합 충돌 해결 - frontend/README.md]
+- Next.js 기본 영어 버전을 버리고, 아키텍처 세션이 작성한 한글 버전
+  전체를 그대로 유지 (설치/실행/빌드 방법을 한글로 설명)
+
+[backend/app/core/config.py] - 아키텍처 세션이 병합해 넣은 최종본
+```python
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class Settings(BaseSettings):
+    supabase_url: str
+    supabase_publishable_key: str   # 예전 이름: supabase_anon_key
+    supabase_secret_key: str        # 예전 이름: supabase_service_role_key
+    supabase_jwks_url: str = ""
+    supabase_db_password: str = ""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
+
+settings = Settings()
+```
+
+[backend/.env] - 새 키 체계에 맞게 사용자가 직접 갱신
+```
+SUPABASE_URL=https://lyivrzengrbvckscqagp.supabase.co
+SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+SUPABASE_SECRET_KEY=sb_secret_...
+SUPABASE_JWKS_URL=https://lyivrzengrbvckscqagp.supabase.co/auth/v1/.well-known/jwks.json
+SUPABASE_DB_PASSWORD=...
+```
+(실제 비밀값은 .env에만 있고, 이 파일은 .gitignore로 막혀 있어
+깃에는 절대 올라가지 않음)
+
+
+===================================
+4. 동작 확인 방법
+===================================
+
+1) git status / git log 로 브랜치가 origin/main을 정상적으로
+   따라잡았는지 확인 (충돌 마커 없음, "nothing to commit" 상태)
+2) frontend/README.md를 열어 한글 설명글만 남아있는지 확인
+3) 새로 고친 backend/.env를 config.py의 Settings 클래스와
+   똑같은 로직으로 실제 로딩해서, 5개 필드(url, publishable_key,
+   secret_key, jwks_url, db_password)가 전부 정상적으로 채워지는지
+   확인 (임시 테스트 후 비밀값이 남은 파일은 바로 삭제)
+4) 로컬 cmd에서 uvicorn app.main:app --reload 로 서버를 실제로
+   켜서 정상 구동 확인 → 사용자가 직접 확인 완료 ("잘 작동되네")
+
+
+===================================
+5. 오늘의 학습 포인트
+===================================
+
+- 여러 세션/여러 컴퓨터로 작업할 땐, 작업을 시작하기 전에 항상
+  git pull부터 하는 습관이 병합 충돌을 줄이는 제일 확실한 방법이다.
+- 그래도 충돌이 났을 때는, "감"으로 고르지 않고 프로젝트에 이미
+  정해둔 규칙 문서(CLAUDE.md 등)를 기준으로 판단하면 흔들리지 않고
+  결정할 수 있다.
+- 외부 서비스(Supabase 등)가 API 키 체계를 바꾸는 일은 실제로
+  일어난다. 이럴 때는 "코드만 병합됐다"로 끝내지 말고, 로컬에만
+  있는 비밀 설정 파일(.env)도 새 코드 기준으로 맞는지 같이 점검해야
+  한다. 이런 파일은 깃에 안 올라가기 때문에 병합만으로는 저절로
+  고쳐지지 않는다.
+- 설정값이 제대로 로딩되는지 확인할 때는, 눈으로 보고 "맞는 것
+  같다"고 넘기지 말고 실제 코드를 실행해서 확인하는 게 훨씬 안전하다.
