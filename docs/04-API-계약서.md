@@ -4,6 +4,7 @@
 > 두 세션은 서로의 코드를 볼 수 없습니다. 이 문서만 봅니다.
 > 💡 **여기 없는 API는 존재하지 않는 것입니다.**
 > 필요하면 아키텍처 세션에 요청해서 이 문서에 먼저 추가하세요.
+> 용어와 규칙(글자 수, 범위)은 [02번 룰북](02-게임-도메인-규칙.md)을 그대로 따릅니다.
 
 ---
 
@@ -12,7 +13,7 @@
 ### 기본 주소
 ```
 개발:  http://localhost:8000
-운영:  https://project-seoul-api.onrender.com  (배포 시 확정)
+운영:  https://<배포 주소>  (배포 시 확정)
 ```
 - 프론트엔드는 이 주소를 코드에 적지 않고 환경변수 `NEXT_PUBLIC_API_BASE_URL`로 읽습니다. (01번 문서 9장)
 - **브라우저가 FastAPI를 직접 호출합니다.** (Next.js 서버를 중간에 거치지 않음)
@@ -22,7 +23,7 @@
 Authorization: Bearer <Supabase access token>
 Content-Type: application/json
 ```
-(`/health` 만 예외 — 인증 불필요)
+(`/health`, `/api/v1/_schema/sse-events` 만 예외 — 인증 불필요)
 
 ### 성공 응답
 HTTP 200 / 201 / 204. 본문은 각 API에 정의된 객체 그대로.
@@ -36,34 +37,35 @@ HTTP 200 / 201 / 204. 본문은 각 API에 정의된 객체 그대로.
 {
   "error": {
     "code": "SESSION_NOT_FOUND",
-    "message": "게임 세션을 찾을 수 없습니다.",
+    "message": "이야기를 찾을 수 없어요.",
     "detail": null
   }
 }
 ```
 - `code`: 아래 표의 값 중 하나 (영어 대문자)
-- `message`: **유저에게 그대로 보여줘도 되는 한글 문장** (스택트레이스·SQL·영어 에러 원문 노출 금지)
-- `detail`: 보통 `null`. `VALIDATION_ERROR`일 때만 `[{ "field": "stats", "message": "능력치 합계는 15여야 합니다." }]`
+- `message`: **유저에게 그대로 보여줘도 되는 한글 문장** (스택트레이스·SQL·영어 에러 원문 노출 금지). 게임 톤에 맞게 부드러운 말투
+- `detail`: 보통 `null`. `VALIDATION_ERROR`일 때만 `[{ "field": "persona.text", "message": "40자 이내로 적어주세요." }]`
 
 ### 에러 코드 전체 목록 (이 표에 없는 code는 쓰지 않는다)
 
 | code | HTTP | 언제 |
 |---|---|---|
-| `VALIDATION_ERROR` | 400 | 입력 형식·길이·규칙 위반 (합계 15 아님 등) |
+| `VALIDATION_ERROR` | 400 | 입력 형식·길이 위반, 없는 선택지 번호 등 |
+| `CONTENT_NOT_ALLOWED` | 400 | 온보딩·직접 입력에 쓸 수 없는 내용 (02번 문서 3장·9장) |
 | `UNAUTHORIZED` | 401 | 토큰 없음 / 만료 / 위조 |
 | `NOT_FOUND` | 404 | 없는 주소로 요청 |
-| `CHARACTER_NOT_FOUND` | 404 | 캐릭터가 없음 / 삭제됨 / **남의 것** |
-| `SCENARIO_NOT_FOUND` | 404 | 시나리오가 없음 / 비공개 |
-| `SESSION_NOT_FOUND` | 404 | 세션이 없음 / **남의 것** |
-| `CHARACTER_IN_USE` | 409 | 진행 중인 세션이 있는 캐릭터를 삭제하거나 새 세션에 쓰려 함 |
-| `TURN_IN_PROGRESS` | 409 | 이 세션에서 이미 턴이 처리 중 |
-| `SESSION_ALREADY_ENDED` | 422 | 끝난 세션에 행동/종료 요청 |
+| `SESSION_NOT_FOUND` | 404 | 이야기가 없음 / 지워짐 / **남의 것** |
+| `TURN_IN_PROGRESS` | 409 | 이 이야기에서 이미 턴을 쓰는 중 |
+| `PROLOGUE_REQUIRED` | 409 | 프롤로그가 아직 없는데 행동·에필로그를 요청 |
+| `SESSION_ALREADY_COMPLETED` | 422 | 완성된 이야기에 행동·에필로그 요청 |
+| `TURN_LIMIT_REACHED` | 422 | 최대 턴(40)에 닿아 더 이어 쓸 수 없음 → 에필로그만 가능 |
+| `EPILOGUE_NOT_ALLOWED_YET` | 422 | 본문 턴이 하나도 없는데 에필로그 요청 |
 | `RATE_LIMITED` | 429 | 너무 자주 요청 (배포 단계에서 도입) |
 | `INTERNAL_ERROR` | 500 | 서버 내부 오류 |
 | `LLM_UNAVAILABLE` | 503 | AI 응답 실패/타임아웃 (주로 SSE `error` 이벤트로 옴) |
 
-> 💡 **남의 것에 접근하면 403이 아니라 404를 줍니다.**
-> 403("권한 없음")을 주면 "그 번호의 세션이 존재는 한다"는 정보가 새어나갑니다.
+> 💡 **남의 이야기에 접근하면 403이 아니라 404를 줍니다.**
+> 403("권한 없음")을 주면 "그 번호의 이야기가 존재는 한다"는 정보가 새어나갑니다.
 > 404("없음")로 통일하면 존재 여부 자체를 숨길 수 있고, 프론트도 처리할 경우가 하나 줄어듭니다.
 
 **프론트엔드**: `error.code`로 분기하고 `error.message`를 그대로 화면에 띄웁니다. `401`이면 로그인 화면으로 보냅니다.
@@ -77,7 +79,7 @@ HTTP 200 / 201 / 204. 본문은 각 API에 정의된 객체 그대로.
 ### 시간 형식
 모든 시각은 **ISO 8601 UTC** 문자열: `"2026-09-10T14:23:01Z"`
 (한국 시간 변환은 프론트엔드가 표시할 때 합니다.)
-- **유일한 예외**: `world_state.datetime_in_game` — 게임 속 시각이라 `"YYYY-MM-DD HH:mm"` 그대로 표시 (02번 문서 5장)
+- **유일한 예외**: `story_state.time` — 게임 속 시각이라 자연어 문자열 그대로 표시 (02번 문서 5장)
 
 ---
 
@@ -107,190 +109,149 @@ GET /api/v1/me
 
 ---
 
-## 3. 게임 규칙표 (프론트가 표를 따로 들고 있지 않게)
+## 3. 온보딩 옵션 (프론트가 표를 따로 들고 있지 않게)
 
 ```
-GET /api/v1/meta/game-rules
-→ 200  GameRules
+GET /api/v1/meta/onboarding-options
+→ 200  OnboardingOptions
 {
-  "stats": [
-    { "code": "strength",   "label": "근력", "description": "몸싸움, 버티기, 힘쓰기" },
-    { "code": "agility",    "label": "민첩", "description": "도주, 손재주, 회피" },
-    { "code": "intellect",  "label": "지능", "description": "지식, 추리, 기계" },
-    { "code": "perception", "label": "감각", "description": "관찰, 눈치, 직감" },
-    { "code": "charm",      "label": "매력", "description": "설득, 협상, 호감" },
-    { "code": "will",       "label": "의지", "description": "공포 저항, 집중, 인내" }
+  "fields": [
+    {
+      "key": "persona", "label": "대상", "question": "오늘의 나는 누구인가요?",
+      "max_length": 40,
+      "presets": [
+        { "id": "persona_office_3y", "text": "3년 차 회사원" },
+        { "id": "persona_job_seeker", "text": "취업준비생" }
+      ]
+    },
+    { "key": "emotion",   "label": "감정",     "question": "오늘 마음은 어떤가요?",    "max_length": 40, "presets": [ ... ] },
+    { "key": "situation", "label": "상황",     "question": "지금 어디에 있나요?",     "max_length": 40, "presets": [ ... ] },
+    { "key": "flavor",    "label": "장르의 결", "question": "어떤 결의 이야기일까요?", "max_length": 40, "presets": [ ... ] }
   ],
-  "stat_allocation": { "min": 1, "max": 5, "total": 15 },
-  "occupations": [
-    { "code": "office_worker", "label": "회사원", "bonus_label": "소지금 +200,000원",
-      "stat_bonus": {}, "money_bonus": 200000 },
-    { "code": "journalist", "label": "기자", "bonus_label": "감각 +1",
-      "stat_bonus": { "perception": 1 }, "money_bonus": 0 }
+  "attitudes": [
+    { "code": "endure",   "label": "참아내기",   "description": "감정을 누르고 버틴다" },
+    { "code": "avoid",    "label": "피하기",     "description": "한발 물러서거나 외면한다" },
+    { "code": "confront", "label": "받아치기",   "description": "뾰족하게 맞선다" },
+    { "code": "open_up",  "label": "털어놓기",   "description": "솔직하게 마음을 드러낸다" },
+    { "code": "let_go",   "label": "흘려보내기", "description": "대수롭지 않게 넘기거나 받아들인다" }
   ],
-  "difficulties": [
-    { "code": "easy", "label": "쉬움", "dc": 10 },
-    { "code": "normal", "label": "보통", "dc": 14 },
-    { "code": "hard", "label": "어려움", "dc": 18 },
-    { "code": "extreme", "label": "극한", "dc": 22 }
-  ],
-  "resource_labels": { "hp": "체력", "mental": "멘탈", "money": "소지금" },
-  "limits": { "character_name_max": 20, "background_max": 500, "action_content_max": 500 }
+  "limits": { "premise_text_max": 40, "free_text_max": 200 }
 }
 ```
-(`occupations`는 실제로 6개 전부 포함. 예시는 2개만 적음)
+- `fields`는 **항상 이 순서**(persona → emotion → situation → flavor)로 옵니다. 화면도 이 순서로 그립니다.
+- 칩 문구·질문 문장·태도 표는 백엔드 `app/game/rules.py`가 원본입니다. (02번 문서 3장·6장)
 
-> 💡 **왜 필요한가?** 캐릭터 생성 화면은 능력치 이름, 직업 목록, 보너스, 글자 수 제한을 알아야 합니다.
-> 이걸 프론트가 코드에 따로 적으면, 백엔드에서 규칙을 바꿨을 때 **화면만 옛날 규칙**으로 남습니다.
-> 규칙의 원본은 백엔드 한 곳(= 02번 문서를 옮긴 코드)이고, 프론트는 받아서 그리기만 합니다.
-
----
-
-## 4. 캐릭터
-
-### 4-1. 목록
-```
-GET /api/v1/characters
-→ 200  Character[]   (삭제된 캐릭터 제외, 최신순)
-[
-  {
-    "id": "uuid",
-    "name": "박준서",
-    "occupation": "journalist",
-    "occupation_label": "기자",
-    "background": "3년차 사회부 기자...",
-    "stats":           { "strength":2, "agility":3, "intellect":4, "perception":4, "charm":1, "will":1 },
-    "effective_stats": { "strength":2, "agility":3, "intellect":4, "perception":5, "charm":1, "will":1 },
-    "has_active_session": false,
-    "created_at": "2026-09-10T14:23:01Z"
-  }
-]
-```
-> 💡 `occupation`(코드)과 `occupation_label`(한글)을 **둘 다** 보냅니다.
-> 프론트가 코드→한글 변환표를 따로 관리하면 두 곳이 어긋납니다.
-> 💡 `stats`는 유저가 배분한 기본값(합계 15), `effective_stats`는 직업 보너스 적용값(최대 5). **화면의 능력치 표시는 `effective_stats`** 를 씁니다. (02번 문서 2장)
-> 💡 `has_active_session`: 진행 중인 세션이 있으면 `true` → 프론트는 삭제 버튼을 비활성화하고 "이어하기"를 보여줄 수 있습니다.
-
-### 4-2. 생성
-```
-POST /api/v1/characters
-CharacterCreateRequest
-{
-  "name": "박준서",
-  "occupation": "journalist",
-  "background": "3년차 사회부 기자...",
-  "stats": { "strength":2, "agility":3, "intellect":4, "perception":4, "charm":1, "will":1 }
-}
-→ 201  Character  (4-1과 같은 객체 1개)
-```
-**백엔드 검증 (실패 시 400 `VALIDATION_ERROR`)**
-- `name`: 앞뒤 공백 제거 후 1~20자
-- `background`: 0~500자
-- `occupation`: 정해진 6개 중 하나
-- `stats`: 6개 키 모두 존재(다른 키 없음), 각 1~5 정수, **합계 정확히 15** (보너스 적용 전 기준)
-
-### 4-3. 삭제
-```
-DELETE /api/v1/characters/{id}
-→ 204  (본문 없음)
-```
-- 실제로 지우지 않고 "삭제 표시"만 합니다. (03번 문서 2-2) → 지난 게임 기록은 그대로 남습니다.
-- 진행 중(`active`/`processing`) 세션이 있으면 409 `CHARACTER_IN_USE`
+> 💡 **왜 필요한가?** 칩 목록을 프론트 코드에 적어두면, 백엔드에서 칩을 바꿨을 때 **화면만 옛날 칩**으로 남습니다.
+> 게다가 칩을 고르면 백엔드가 `preset_id`로 문구를 찾아야 하므로, 두 쪽이 같은 표를 봐야 합니다.
 
 ---
 
-## 5. 시나리오
+## 4. 이야기 (session)
 
-```
-GET /api/v1/scenarios
-→ 200  Scenario[]   (is_public = true 인 것만)
-[
-  {
-    "id": "uuid",
-    "title": "을지로 3가의 실종자",
-    "summary": "3주 전 사라진 동료의 마지막 문자가 도착한다.",
-    "tags": ["미스터리", "도시"],
-    "estimated_turns": 30,
-    "difficulty": "normal",
-    "difficulty_label": "보통"
-  }
-]
-```
-- `difficulty`: `easy` / `normal` / `hard` 중 하나
-- ⚠️ `gm_guideline`, `goal_flags`, `opening_narration`은 이 목록에 **절대 포함하지 않습니다.** (스포일러)
-
----
-
-## 6. 게임 세션
-
-### 6-1. 시작
+### 4-1. 이야기 만들기 (온보딩 제출)
 ```
 POST /api/v1/sessions
 SessionCreateRequest
-{ "character_id": "uuid", "scenario_id": "uuid" }
-→ 201  SessionDetail
 {
-  "id": "uuid",
-  "status": "active",
-  "turn_count": 0,
-  "max_turns": 100,
-  "character": { ...4-1 Character 객체... },
-  "scenario":  { ...5 Scenario 객체... },
-  "resources": {
-    "hp": 100, "max_hp": 100,
-    "mental": 100, "max_mental": 100,
-    "money": 300000,
-    "inventory": [{ "name":"휴대폰", "quantity":1, "description":"배터리 62%" }]
-  },
-  "world_state": {
-    "location": "을지로3가역 1번 출구",
-    "datetime_in_game": "2026-03-14 22:40",
-    "weather": "비",
-    "present_npcs": [],
-    "flags": {}
-  },
-  "opening_narration": "빗줄기가 굵어진다. 당신은...",
-  "last_narration": null,
-  "last_suggestions": [],
-  "created_at": "2026-09-10T14:23:01Z",
-  "updated_at": "2026-09-10T14:23:01Z"
+  "persona":   { "text": "3년 차 회사원",       "preset_id": "persona_office_3y" },
+  "emotion":   { "text": "지독한 권태와 짜증",   "preset_id": null },
+  "situation": { "text": "월요일 아침 출근길",   "preset_id": "situation_monday_commute" },
+  "flavor":    { "text": "일상/드라마",         "preset_id": "flavor_daily_drama" }
 }
+→ 201  SessionDetail  (4-3과 같은 모양. has_prologue = false)
 ```
-- 초기 `resources`는 02번 문서 3장 규칙대로 백엔드가 계산합니다. (예시는 기자 = 보너스 없음 → 300,000원)
-- 에러: 캐릭터 없음/삭제/남의 것 → 404 `CHARACTER_NOT_FOUND`, 시나리오 없음/비공개 → 404 `SCENARIO_NOT_FOUND`,
-  그 캐릭터가 이미 진행 중인 세션에 있음 → 409 `CHARACTER_IN_USE`
+**백엔드 검사**
+- 각 `text`: 앞뒤 공백 제거 후 1~40자 → 실패 시 400 `VALIDATION_ERROR`
+- `preset_id`가 있으면: 존재하는 칩인지 확인하고 **칩의 문구로 덮어씀** (보낸 `text`는 무시). 없는 id면 400
+- 금지어 검사 → 400 `CONTENT_NOT_ALLOWED` (Step 9부터 AI 의미 검사 추가, 02번 문서 3장)
+- `flavor_code`, 시작 `mood`는 백엔드가 정함 (02번 문서 3장·4장)
 
-> ⚠️ **이 요청은 AI를 호출하지 않습니다.** `opening_narration`은 DB의 고정 텍스트입니다.
-> → 즉시(1초 이내) 응답합니다.
+> ⚠️ Step 4~8에서는 AI를 호출하지 않아 즉시 응답합니다. **Step 9부터 AI 입력 해석기가 붙어 1~3초 걸릴 수 있고,
+> 503 `LLM_UNAVAILABLE`도 올 수 있습니다.** 프론트는 처음부터 "이야기를 준비하는 중..." 대기 표시를 넣어둡니다.
 
-### 6-2. 내 세션 목록
+**만든 뒤 흐름**: 응답의 `id`로 읽기 화면(`/story/{id}`)으로 이동 → `has_prologue`가 `false`면 5-2 프롤로그 스트림을 부른다.
+
+### 4-2. 이야기 목록 (이어 쓰는 중 / 여백의 서재)
 ```
-GET /api/v1/sessions?status=ongoing
-→ 200  SessionListItem[]   (updated_at 최신순)
+GET /api/v1/sessions?status=completed
+→ 200  SessionListItem[]
 [
   {
     "id": "uuid",
-    "status": "active",
-    "turn_count": 14,
-    "character_name": "박준서",
-    "scenario_title": "을지로 3가의 실종자",
-    "summary_so_far": "...",
-    "updated_at": "2026-09-10T14:30:00Z"
+    "status": "completed",
+    "title": "손잡이를 놓지 못한 월요일",
+    "premise": { ...4-3의 premise와 같은 모양... },
+    "turn_count": 12,
+    "mood": { "label": "안도", "valence": 1, "intensity": 2, "note": "..." },
+    "mood_valences": [-1, -1, -2, -1, 0, 0, 1, 1],
+    "attitude_counts": [
+      { "attitude": "endure", "label": "참아내기", "count": 5 },
+      { "attitude": "confront", "label": "받아치기", "count": 1 }
+    ],
+    "updated_at": "2026-09-10T14:30:00Z",
+    "completed_at": "2026-09-10T14:30:00Z"
   }
 ]
 ```
-- `status` 파라미터: `ongoing`(= active + processing) / `ended`(= ended_* 4종) / `all`. 생략하면 `all`.
+- `status` 파라미터: `ongoing`(= active + processing) / `completed`(= **여백의 서재**) / `all`. 생략하면 `all`
+- 정렬: `ongoing`은 `updated_at` 최신순, `completed`는 `completed_at` 최신순, `all`은 `updated_at` 최신순
+- `mood_valences`: 턴 순서대로의 `valence` 목록 → 서재 카드의 **작은 감정 파동 선**
+- `attitude_counts`: 개수가 0인 태도는 빼고, 많은 순
+- 진행 중인 이야기는 `title`이 `null`
 
-### 6-3. 세션 상세 (이어하기용)
+### 4-3. 이야기 상세
 ```
 GET /api/v1/sessions/{id}
-→ 200  SessionDetail  (6-1과 같은 모양)
+→ 200  SessionDetail
+{
+  "id": "uuid",
+  "status": "active",
+  "title": null,
+  "premise": {
+    "persona":   { "text": "3년 차 회사원",     "preset_id": "persona_office_3y" },
+    "emotion":   { "text": "지독한 권태와 짜증", "preset_id": null },
+    "situation": { "text": "월요일 아침 출근길", "preset_id": "situation_monday_commute" },
+    "flavor":    { "text": "일상/드라마",       "preset_id": "flavor_daily_drama" },
+    "flavor_code": "daily_drama"
+  },
+  "mood": { "label": "짜증", "valence": -1, "intensity": 4, "note": "어깨를 부딪친 사람이 사과도 없이 내렸다" },
+  "story_state": {
+    "location": "2호선 합정역 승강장", "time": "월요일 오전 8시 20분", "weather": "흐림",
+    "people": [], "threads": ["어젯밤 팀장의 메시지에 아직 답하지 않았다"]
+  },
+  "turn_count": 3,
+  "soft_turn_limit": 30,
+  "max_turns": 40,
+  "has_prologue": true,
+  "can_close": true,
+  "turn_limit_reached": false,
+  "last_choices": [
+    { "index": 0, "text": "“괜찮습니다.” 웃으며 삼킨다", "attitude": "endure", "attitude_label": "참아내기" },
+    { "index": 1, "text": "대답 대신 이어폰을 꽂는다", "attitude": "avoid", "attitude_label": "피하기" }
+  ],
+  "last_closure_suggested": false,
+  "mood_history": [
+    { "turn_number": 0, "turn_type": "prologue", "label": "권태", "valence": -1, "intensity": 3 },
+    { "turn_number": 1, "turn_type": "action",   "label": "짜증", "valence": -1, "intensity": 4 }
+  ],
+  "attitude_counts": [ { "attitude": "endure", "label": "참아내기", "count": 2 } ],
+  "created_at": "2026-09-10T14:23:01Z",
+  "updated_at": "2026-09-10T14:30:00Z",
+  "completed_at": null
+}
 ```
-- `last_narration`: 가장 최근 턴의 서술. 턴이 하나도 없으면 `null` → 프론트는 `opening_narration`을 보여줌
-- `last_suggestions`: 가장 최근 턴의 추천 행동. 없으면 `[]`
-- 이전 대화 전체는 6-4로 따로 불러옵니다.
+| 칸 | 뜻 |
+|---|---|
+| `has_prologue` | 프롤로그가 저장됐는가. `false`면 프론트는 5-2를 부른다 |
+| `can_close` | "여기서 맺기" 버튼을 켤지. `status = active` 이고 `turn_count ≥ 1` |
+| `turn_limit_reached` | `turn_count ≥ max_turns`. `true`면 선택지·입력창을 숨기고 맺기만 보여준다 |
+| `last_choices` | 가장 최근 턴의 선택지 (이어하기 할 때 바로 그림). 없으면 `[]` |
+| `last_closure_suggested` | 가장 최근 턴이 "맺기 좋은 순간"이었는가 |
+| `mood_history` | 턴별 `mood_after` (프롤로그 포함, 에필로그 포함). **감정의 파동** 그래프용 |
 
-### 6-4. 턴 기록 (스크롤 히스토리)
+- 이야기 본문(서술)은 여기 없습니다. 4-4로 따로 불러옵니다.
+
+### 4-4. 턴 기록 (책 본문)
 ```
 GET /api/v1/sessions/{id}/turns?limit=20&before_turn=15
 → 200  TurnListResponse
@@ -299,17 +260,19 @@ GET /api/v1/sessions/{id}/turns?limit=20&before_turn=15
     {
       "id": "uuid",
       "turn_number": 14,
-      "player_input": "알바생에게 사진을 보여준다",
-      "dice_check": {
-        "stat": "charm", "stat_label": "매력",
-        "skill_label": "설득",
-        "dice": 11, "modifier": 2, "total": 13,
-        "difficulty": 14, "difficulty_label": "보통",
-        "outcome": "failure", "outcome_label": "실패"
-      },
-      "narration": "알바생이 고개를 젓는다...",
-      "state_patch": { ...7-5 ④ StatePatch 모양... },
-      "suggestions": ["더 캐묻는다", "명함을 건넨다", "물러난다"],
+      "turn_type": "action",
+      "input_kind": "choice",
+      "player_input": "“괜찮습니다.” 웃으며 삼킨다",
+      "attitude": "endure",
+      "attitude_label": "참아내기",
+      "narration": "입꼬리를 올리는 데에도 힘이 든다는 걸 처음 알았다...",
+      "choices": [
+        { "index": 0, "text": "화장실 거울 앞에서 한숨을 쉰다", "attitude": "let_go", "attitude_label": "흘려보내기" },
+        { "index": 1, "text": "수진에게 메시지를 보낸다", "attitude": "open_up", "attitude_label": "털어놓기" }
+      ],
+      "closure_suggested": false,
+      "mood_after": { "label": "서글픔", "valence": -1, "intensity": 3, "note": "..." },
+      "safety_notice": false,
       "created_at": "2026-09-10T14:30:00Z"
     }
   ],
@@ -318,68 +281,95 @@ GET /api/v1/sessions/{id}/turns?limit=20&before_turn=15
 ```
 - `limit`: 1~50, 생략 시 20
 - `before_turn`: 이 번호 **미만**의 턴만. 생략하면 가장 최근 턴부터
-- 배열은 **오래된 것 → 최신 순**입니다. (화면에 그리는 순서 그대로. 최신 턴이 마지막)
-- `dice_check`가 `null`이면 판정 없는 턴입니다.
-- `has_more`: 더 오래된 턴이 남아있으면 `true` → 프론트는 가장 앞 턴의 `turn_number`를 `before_turn`으로 다시 요청
+- 배열은 **오래된 것 → 최신 순**입니다. (책 읽는 순서 그대로. 최신 턴이 마지막)
+- 프롤로그(0번)와 에필로그도 같은 목록에 들어 있습니다. `turn_type`으로 구분해서 그립니다.
+  (프롤로그·에필로그는 `input_kind`, `player_input`, `attitude`가 `null`)
+- `has_more`: 더 오래된 턴이 남아있으면 `true` → 가장 앞 턴의 `turn_number`를 `before_turn`으로 다시 요청
+- 이 `Turn` 모양은 5장 `turn_completed` 이벤트 안의 `turn`과 **완전히 같은 모델**입니다.
 
-### 6-5. 세션 종료
+### 4-5. 이야기 지우기
 ```
-POST /api/v1/sessions/{id}/end
-→ 200  SessionEndResponse
-{ "id": "uuid", "status": "ended_by_user", "summary_so_far": "..." }
+DELETE /api/v1/sessions/{id}
+→ 204  (본문 없음)
 ```
-- 턴 처리 중이면 409 `TURN_IN_PROGRESS`, 이미 끝났으면 422 `SESSION_ALREADY_ENDED`
+- 실제로 지우지 않고 "삭제 표시"(`deleted_at`)만 합니다. 이후 목록·상세·턴 조회에서 404
+- 턴을 쓰는 중이면 409 `TURN_IN_PROGRESS`
 
 ---
 
-## 7. ⭐ 행동 전송 (SSE 스트리밍) — 가장 중요
+## 5. ⭐ 이야기 쓰기 (SSE 스트리밍) — 가장 중요
 
+AI가 글을 쓰는 요청은 **3가지**이고, 셋 다 **같은 SSE 규칙**을 씁니다.
+
+| 요청 | 주소 | 결과로 저장되는 턴 |
+|---|---|---|
+| 프롤로그 | `POST /api/v1/sessions/{id}/prologue` | `turn_type = prologue` (0번) |
+| 행동 | `POST /api/v1/sessions/{id}/actions` | `turn_type = action` |
+| 에필로그 | `POST /api/v1/sessions/{id}/epilogue` | `turn_type = epilogue` → 이야기 **완성** |
+
+모든 요청에 `Accept: text/event-stream` 헤더를 붙입니다.
+
+### 5-1. 요청 본문
+
+```jsonc
+// 프롤로그: PrologueRequest
+{ "client_action_id": "브라우저가 만든 uuid" }
+
+// 행동 — 선택지를 눌렀을 때: ActionRequest
+{ "client_action_id": "uuid", "input_kind": "choice", "choice_index": 1, "content": null }
+
+// 행동 — 직접 입력했을 때: ActionRequest
+{ "client_action_id": "uuid", "input_kind": "free_text", "choice_index": null, "content": "그냥 오늘은 좀 힘들다고 말해버린다" }
+
+// 에필로그: EpilogueRequest
+{ "client_action_id": "uuid" }
 ```
-POST /api/v1/sessions/{id}/actions
-Accept: text/event-stream
-ActionRequest
-{
-  "client_action_id": "브라우저가 만든 uuid",
-  "content": "알바생에게 실종자 사진을 보여주며 본 적 있냐고 묻는다"
-}
-```
+- `input_kind = choice`: `choice_index` 필수(직전 턴 선택지 번호), `content`는 `null`
+- `input_kind = free_text`: `content` 필수(앞뒤 공백 제거 후 1~200자), `choice_index`는 `null`
+- 규칙에 안 맞으면 400 `VALIDATION_ERROR` (예: 선택지가 2개인데 `choice_index: 2`)
 
-### 7-1. 요청 검증과 응답 방식
+### 5-2. 검사 순서와 응답 방식 (백엔드는 이 순서를 지킵니다)
 
-**검사 순서 (백엔드는 이 순서를 지킵니다)**
-1. 인증 + 세션 소유 확인 → 실패 시 401 / 404
-2. `content` 1~500자(앞뒤 공백 제거 후), `client_action_id` uuid 형식 → 실패 시 400
-3. **같은 `client_action_id`로 이미 저장된 턴이 있나?** → 있으면 **재생**(7-3). 아래 검사 생략
-4. 세션이 종료 상태 → 422 `SESSION_ALREADY_ENDED`
-5. 턴 잠금 획득 실패 → 409 `TURN_IN_PROGRESS`
-6. 통과 → HTTP 200 + SSE 스트림 시작
+1. 인증 + 이야기 소유 확인 → 401 / 404
+2. 요청 본문 검사 → 400
+3. **재생 확인**: 아래에 해당하면 새로 쓰지 않고 **저장된 턴을 재생**(5-4). 아래 검사 생략
+   - 같은 `client_action_id`로 저장된 턴이 있다
+   - (프롤로그 요청인데) 이미 프롤로그가 있다 / (에필로그 요청인데) 이미 에필로그가 있다
+4. 이야기가 완성됨 → 422 `SESSION_ALREADY_COMPLETED`
+5. 요청별 조건
+   - 행동·에필로그인데 프롤로그가 없다 → 409 `PROLOGUE_REQUIRED`
+   - 행동인데 `turn_count ≥ max_turns` → 422 `TURN_LIMIT_REACHED`
+   - 에필로그인데 `turn_count = 0` → 422 `EPILOGUE_NOT_ALLOWED_YET`
+6. 턴 잠금 획득 실패 → 409 `TURN_IN_PROGRESS`
+7. 통과 → HTTP 200 + SSE 스트림 시작
 
-> ⚠️ **1~5에서 거절되면 SSE가 아니라 일반 JSON 에러 응답**(0장 모양)이 옵니다.
+> ⚠️ **1~6에서 거절되면 SSE가 아니라 일반 JSON 에러 응답**(0장 모양)이 옵니다.
 > 프론트는 `response.ok`를 먼저 확인하고, `true`일 때만 스트림을 읽습니다.
 
-### 7-2. `client_action_id` 규칙 (중복 방지)
+### 5-3. `client_action_id` 규칙 (중복 방지)
 
-**`client_action_id` 1개 = 유저가 전송 버튼을 1번 누른 것.**
+**`client_action_id` 1개 = 유저가 버튼을 1번 누른 것** (선택지 클릭, 전송, "여기서 맺기", 프롤로그 시작).
 - 네트워크 문제로 **같은 클릭을 자동 재전송**할 때 → 같은 id
-- 유저가 **다시 전송 버튼을 누르면** → 새 id
+- 유저가 **다시 버튼을 누르면** → 새 id
 
 | 상황 | 결과 |
 |---|---|
-| 처음 보는 id + 세션 `active` | 새 턴 처리 (SSE) |
-| 이 id로 **저장된 턴이 있음** | 새로 처리하지 않고 **저장된 결과를 재생** (7-3) |
+| 처음 보는 id + 조건 통과 | 새 턴을 씀 (SSE) |
+| 이 id로 **저장된 턴이 있음** | 새로 쓰지 않고 **저장된 결과를 재생** |
 | 이 id가 **아직 처리 중** (또는 다른 턴이 처리 중) | 409 `TURN_IN_PROGRESS` |
-| 이 id의 이전 시도가 **실패해서 저장 안 됨** | 저장된 게 없으므로 새 턴으로 처리 (재시도 허용) |
+| 이 id의 이전 시도가 **실패해서 저장 안 됨** | 저장된 게 없으므로 새로 씀 (재시도 허용) |
 
+- 프롤로그·에필로그는 이야기마다 하나뿐이라, **id가 달라도 이미 있으면 재생**합니다. (새로고침해도 안전)
 - 브라우저에서 uuid는 `crypto.randomUUID()`로 만듭니다.
   ⚠️ 이 함수는 **https 또는 localhost에서만** 동작합니다. 휴대폰으로 `http://192.168.x.x:3000` 에 접속해 테스트하면 에러가 납니다.
   → 프론트는 `crypto.randomUUID`가 없을 때 쓸 대체 함수를 함께 둡니다.
 
-### 7-3. 재생(replay) 스트림
+### 5-4. 재생(replay) 스트림
 저장된 턴을 다시 보낼 때도 **같은 이벤트 순서**를 씁니다. 차이점은 두 가지뿐입니다.
 - `narration_delta`가 **전체 서술을 담아 1번만** 옵니다.
-- `turn_completed`의 `resources`/`world_state`는 **지금 이 순간의 세션 상태**입니다.
+- `turn_completed`의 `session`은 **지금 이 순간의 이야기 상태**입니다.
 
-### 7-4. SSE 전송 형식 (양쪽 공통)
+### 5-5. SSE 전송 형식 (양쪽 공통)
 
 ```
 event: <이벤트이름>\n
@@ -388,101 +378,70 @@ data: <한 줄짜리 JSON>\n
 ```
 - `data`는 **항상 한 줄의 JSON**입니다. (서술 속 줄바꿈은 JSON 안에서 `\n`으로 이스케이프되어 옴)
 - 이벤트와 이벤트 사이는 **빈 줄**로 구분합니다. 프론트 파서는 `\r\n`도 `\n`과 똑같이 처리합니다.
-- **`:`로 시작하는 줄은 주석(heartbeat)** 입니다. 프론트 파서는 무시합니다. (7-6)
+- **`:`로 시작하는 줄은 주석(heartbeat)** 입니다. 프론트 파서는 무시합니다. (5-7)
 - 응답 헤더: `Content-Type: text/event-stream`, `Cache-Control: no-cache`, `X-Accel-Buffering: no`
 - 한글이 청크 경계에서 잘릴 수 있으므로 프론트는 `new TextDecoder("utf-8")`의 `decode(chunk, { stream: true })`로 읽습니다.
 
-### 7-5. 이벤트 순서 (이 순서가 보장됩니다)
+### 5-6. 이벤트 (4종뿐)
 
 ```
-turn_started → [dice_roll]? → narration_delta × N(1번 이상) → [state_patch]? → [suggestions]? → turn_completed
-                                           (어느 시점이든 실패하면) → error  (그리고 스트림 종료)
+turn_started → narration_delta × N(1번 이상) → turn_completed
+                     (어느 시점이든 실패하면) → error  (그리고 스트림 종료)
 ```
-(`[ ]?` 표시는 "있을 수도, 없을 수도 있음"이라는 뜻입니다.)
+
+> 💡 **이벤트를 4개로 줄인 이유**: 이벤트 종류가 많을수록 "중간 이벤트를 놓쳤을 때" 경우의 수가 늘어납니다.
+> 선택지·감정·이야기 상태는 전부 **마지막 `turn_completed` 하나에 담아** 보냅니다.
+> 프론트는 "서술은 흘려 받고, 나머지는 끝에 한 번에 받는다"만 기억하면 됩니다.
 
 #### ① turn_started — `TurnStartedData`
 ```
 event: turn_started
-data: {"turn_id":"uuid","turn_number":15}
+data: {"turn_id":"uuid","turn_number":15,"turn_type":"action"}
 ```
 > ⚠️ 이 `turn_id`는 **아직 DB에 저장되지 않은 번호**입니다. 턴이 끝까지 성공해야 저장됩니다.
 
-#### ② dice_roll (판정이 있을 때만) — `DiceCheck`
-```
-event: dice_roll
-data: {"stat":"charm","stat_label":"매력","skill_label":"설득","dice":11,"modifier":2,"total":13,"difficulty":14,"difficulty_label":"보통","outcome":"failure","outcome_label":"실패"}
-```
-- `modifier` = 실제 능력치(`effective_stats`) × 2, `total` = `dice` + `modifier`
-- `outcome`: `critical_failure` / `failure` / `success` / `critical_success`
-> 💡 프론트는 이 이벤트를 받으면 **주사위 굴리는 연출**을 보여줍니다.
-> 서술보다 먼저 오므로 "굴린다 → 결과 → 이야기" 순서가 자연스럽습니다.
-> 💡 이 모양은 6-4 턴 기록의 `dice_check`와 **완전히 같은 모델**(`DiceCheck`)입니다.
-
-#### ③ narration_delta (1번 이상) — `NarrationDeltaData`
+#### ② narration_delta (1번 이상) — `NarrationDeltaData`
 ```
 event: narration_delta
-data: {"text":"알바생의 "}
+data: {"text":"입꼬리를 올리는 데에도 "}
 
 event: narration_delta
-data: {"text":"표정이 굳는다."}
+data: {"text":"힘이 든다는 걸 처음 알았다."}
 ```
 > ⚠️ `text`를 **그대로 이어붙이면** 전체 서술이 됩니다. 공백과 줄바꿈도 이미 포함돼 있습니다.
 > 프론트가 임의로 공백을 넣거나 trim 하면 안 됩니다.
-> ⚠️ 몇 번 나눠 올지는 정해져 있지 않습니다. **전체가 1번에 올 수도 있습니다.** (Step 6과 재생 시)
+> ⚠️ 몇 번 나눠 올지는 정해져 있지 않습니다. **전체가 1번에 올 수도 있습니다.** (Step 5~6과 재생 시)
 
-#### ④ state_patch (변화가 있을 때만) — `StatePatch`
-```
-event: state_patch
-data: {"resources":{"hp":0,"mental":-3,"money":0},"inventory":{"added":[{"name":"낡은 명함","quantity":1,"description":"을지로 인쇄소 명함"}],"removed":[]},"world_state":{"location":null,"datetime_in_game":null,"weather":null,"present_npcs":["김수진"],"flags":{"met_sujin":true}}}
-```
-**`StatePatch` 읽는 법 (키는 항상 3개 다 있음)**
-
-| 부분 | 의미 | 변화 없음 표시 |
-|---|---|---|
-| `resources.hp` / `mental` / `money` | **변화량(델타)**. `-3` = 3 감소 | `0` |
-| `inventory.added` | 추가된 아이템 (같은 이름이면 수량 합산) | `[]` |
-| `inventory.removed` | 제거된 아이템 `{ "name", "quantity" }` | `[]` |
-| `world_state.location` 등 일반 칸 | **새 값으로 덮어쓰기** | `null` |
-| `world_state.present_npcs` | **목록 전체를 이 값으로 교체** | `null` |
-| `world_state.flags` | **키 단위로 병합**(여기 있는 키만 갱신, 나머지 유지) | `{}` |
-
-- 여기 담긴 값은 AI의 원래 제안이 아니라 **상한(clamp)까지 적용해 실제로 반영된 값**입니다.
-- 이 모양은 6-4 턴 기록의 `state_patch`와 **완전히 같은 모델**입니다.
-
-#### ⑤ suggestions (선택) — `SuggestionsData`
-```
-event: suggestions
-data: {"items":["더 캐묻는다","명함을 건넨다","물러난다"]}
-```
-- 0~3개. 기록원 AI가 실패하면 이 이벤트는 오지 않습니다.
-
-#### ⑥ turn_completed (성공 시 반드시 마지막에 1번) — `TurnCompletedData`
+#### ③ turn_completed (성공 시 반드시 마지막에 1번) — `TurnCompletedData`
 ```
 event: turn_completed
-data: {"turn_id":"uuid","turn_number":15,"session_status":"active","resources":{"hp":100,"max_hp":100,"mental":97,"max_mental":100,"money":300000,"inventory":[{"name":"휴대폰","quantity":1,"description":"배터리 60%"},{"name":"낡은 명함","quantity":1,"description":"을지로 인쇄소 명함"}]},"world_state":{"location":"을지로3가 편의점","datetime_in_game":"2026-03-14 22:55","weather":"비","present_npcs":["김수진"],"flags":{"met_sujin":true}}}
+data: {"turn":{ ...4-4의 Turn 객체 그대로... },"session":{"status":"active","title":null,"mood":{...},"story_state":{...},"turn_count":15,"can_close":true,"turn_limit_reached":false}}
 ```
-> 🚨 **여기 담긴 값은 "변화량"이 아니라 "최종 전체 상태"입니다.**
-> 프론트는 `state_patch`로 부드러운 증감 애니메이션을 주되,
-> **최종 화면 값은 반드시 `turn_completed`의 값으로 덮어씁니다.**
-> → 중간 이벤트를 하나 놓쳐도 화면이 DB와 어긋나지 않게 하는 안전장치입니다.
-- `session_status`가 `ended_`로 시작하면 이 턴으로 게임이 끝난 것 → 프론트는 결과 화면(승리/패배/시간초과)을 보여줍니다.
+| 부분 | 모델 | 뜻 |
+|---|---|---|
+| `turn` | `Turn` | **방금 저장된 턴 전체** (서술 전체, 선택지, 태도, `mood_after`, `safety_notice` 포함). 4-4 목록의 항목과 같은 모양 |
+| `session` | `SessionState` | 턴이 끝난 뒤의 이야기 상태 (`status`, `title`, `mood`, `story_state`, `turn_count`, `can_close`, `turn_limit_reached`) |
 
-#### ⑦ error (실패 시. 이 이벤트 뒤 스트림 종료) — `SseErrorData`
+> 🚨 **화면의 최종 값은 반드시 `turn_completed`로 덮어씁니다.**
+> 스트리밍으로 이어붙인 서술도 `turn.narration`으로 **교체**합니다. (중간 조각을 하나 놓쳐도 화면이 DB와 같아지는 안전장치)
+- 프롤로그·행동: `turn.choices`를 선택지로 그리고, `turn.closure_suggested`가 `true`면 "여기서 맺기"를 은은하게 강조
+- 에필로그: `session.status = "completed"`, `session.title`에 제목 → 프론트는 **마지막 페이지 화면**(제목 + 감정의 파동 + 오늘의 태도)으로 전환
+- `turn.safety_notice`가 `true`면 도움 안내를 조용히 함께 보여줌 (02번 문서 9장, 09번 문서)
+
+#### ④ error (실패 시. 이 이벤트 뒤 스트림 종료) — `SseErrorData`
 ```
 event: error
-data: {"code":"LLM_UNAVAILABLE","message":"AI 응답에 실패했습니다. 잠시 후 다시 시도해주세요."}
+data: {"code":"LLM_UNAVAILABLE","message":"잠시 이야기가 끊겼어요. 조금 뒤에 다시 이어 써볼까요?"}
 ```
 - `code`: `LLM_UNAVAILABLE` 또는 `INTERNAL_ERROR`
-> ⚠️ 스트림이 이미 시작된 뒤에는 HTTP 상태코드를 바꿀 수 없습니다.
-> 그래서 **에러도 SSE 이벤트로** 보냅니다. 프론트는 두 가지 실패를 모두 처리해야 합니다.
-> (① 요청 자체가 거부된 4xx 응답 ② 스트림 도중의 `error` 이벤트)
+> ⚠️ 스트림이 이미 시작된 뒤에는 HTTP 상태코드를 바꿀 수 없습니다. 그래서 **에러도 SSE 이벤트로** 보냅니다.
+> 프론트는 두 가지 실패를 모두 처리해야 합니다. (① 요청 자체가 거부된 4xx 응답 ② 스트림 도중의 `error` 이벤트)
 
 🚨 **`error`가 온 턴은 DB에 저장되지 않았습니다.** (`turn_started`에서 받은 `turn_id`는 없던 번호가 됩니다)
-→ 프론트는 화면에서 그 턴(유저가 친 문장 + 중간까지 나온 서술)을 **지우고**,
-   유저가 친 문장을 **입력창에 되돌려** 다시 보낼 수 있게 합니다. 세션 상태도 바뀌지 않았습니다.
+→ 프론트는 중간까지 나온 서술을 **지우고**, 직접 입력이었다면 그 문장을 **입력창에 되돌려** 다시 보낼 수 있게 합니다. 이야기 상태도 바뀌지 않았습니다.
 
-### 7-6. heartbeat (연결 유지 신호)
-판정·기억검색이 오래 걸리면 첫 글자가 나오기 전에 한참 조용할 수 있습니다.
+### 5-7. heartbeat (연결 유지 신호)
+AI가 생각하는 동안 첫 글자가 나오기 전에 한참 조용할 수 있습니다.
 백엔드는 스트림이 열려 있는 동안 **15초마다** 아래 한 줄을 보냅니다.
 ```
 : ping\n
@@ -490,31 +449,32 @@ data: {"code":"LLM_UNAVAILABLE","message":"AI 응답에 실패했습니다. 잠�
 ```
 - 프론트는 이 줄을 화면에 쓰지 않고 무시하되, **"아직 살아있음"으로 보고 타임아웃 시계를 다시 0부터** 셉니다.
 
-### 7-7. 연결이 끊겼을 때
+### 5-8. 연결이 끊겼을 때
 - 유저가 페이지를 떠나 **프론트가 연결을 끊으면**(AbortController), 백엔드는 처리를 멈춥니다.
   - 아직 DB 저장 전이었다면 → 아무것도 저장되지 않음, 잠금 해제
   - 이미 저장이 끝난 뒤였다면 → 턴은 저장되어 있음
 - 그래서 프론트는 **`turn_completed`를 못 받고 끊긴 모든 경우**에 `GET /sessions/{id}`와 `GET /sessions/{id}/turns`로 화면을 다시 맞춥니다.
 
-### 7-8. 프론트엔드 처리 체크리스트
+### 5-9. 프론트엔드 처리 체크리스트
 - [ ] `EventSource`는 헤더를 못 붙이므로 쓰지 않는다. `fetch` + `ReadableStream`으로 직접 파싱한다
+- [ ] 세 요청(프롤로그·행동·에필로그)은 **같은 스트림 처리 함수 하나**로 다룬다
 - [ ] `response.ok`가 아니면 0장 JSON 에러로 처리한다
 - [ ] 스트림 도중 유저가 페이지를 떠나면 `AbortController`로 연결 종료
 - [ ] 30초 동안 아무 데이터(heartbeat 포함)도 안 오면 타임아웃 처리
-- [ ] `turn_completed` 없이 스트림이 끊기면 → "다시 불러오기" 버튼 노출 후 7-7 방식으로 복구
-- [ ] `error` 이벤트면 해당 턴을 화면에서 지우고 입력 문장을 입력창에 되돌린다
-- [ ] 전송 중에는 입력창·전송 버튼 비활성화 (연타 방지)
+- [ ] `turn_completed` 없이 스트림이 끊기면 → "다시 불러오기" 안내 후 5-8 방식으로 복구
+- [ ] `error` 이벤트면 중간 서술을 지우고, 직접 입력 문장을 입력창에 되돌린다
+- [ ] 쓰는 중에는 선택지·입력창·맺기 버튼 비활성화 (연타 방지)
 
 ---
 
-## 8. 타입 자동 생성 파이프라인 (Step 3에서 구축)
+## 6. 타입 자동 생성 파이프라인 (Step 3에서 구축)
 
 ```
 백엔드                                      프론트엔드
 Pydantic 모델                               src/types/api.ts (자동 생성, 손대지 않음)
    │                                              ▲
    └─ FastAPI가 /openapi.json 생성 ────────────────┘
-        (npx openapi-typescript 로 변환 → npm run gen:api)
+        (openapi-typescript 로 변환 → npm run gen:api)
 ```
 
 ```bash
@@ -525,7 +485,7 @@ Pydantic 모델                               src/types/api.ts (자동 생성, �
 > 🚨 **`src/types/api.ts`는 절대 손으로 고치지 않습니다.**
 > 고쳐야 한다면 백엔드의 Pydantic 모델을 고치고 위 명령을 다시 실행합니다.
 > (자동 생성된 타입에 짧은 별명을 붙이는 파일 `src/types/index.ts`는 손으로 써도 됩니다.
->  예: `export type Character = components["schemas"]["Character"]` — **모양을 새로 정의하는 것은 금지**)
+>  예: `export type Turn = components["schemas"]["Turn"]` — **모양을 새로 정의하는 것은 금지**)
 
 ### SSE 이벤트 타입도 자동 생성한다
 SSE 이벤트는 원래 OpenAPI 문서에 나타나지 않습니다. 그래서 **문서 전용 엔드포인트**를 하나 둡니다.
@@ -534,35 +494,30 @@ GET /api/v1/_schema/sse-events   (인증 불필요, 실제 화면에서 호출�
 → 200  SseEventCatalog
 {
   "turn_started":    TurnStartedData,
-  "dice_roll":       DiceCheck,
   "narration_delta": NarrationDeltaData,
-  "state_patch":     StatePatch,
-  "suggestions":     SuggestionsData,
   "turn_completed":  TurnCompletedData,
   "error":           SseErrorData
 }
 ```
 → 이 엔드포인트의 `response_model`로 등록된 모델들이 `/openapi.json`에 포함되어, **SSE 데이터 타입도 `api.ts`에 자동으로 생깁니다.**
-→ 프론트/백엔드가 손으로 맞추는 지점이 **0개**가 됩니다. (이벤트 **이름** 7개만 이 문서를 보고 맞춤)
+→ 프론트/백엔드가 손으로 맞추는 지점이 **0개**가 됩니다. (이벤트 **이름** 4개만 이 문서를 보고 맞춤)
 
 ### 백엔드 모델 이름표 (⚠️ 이 이름 그대로. 이름이 곧 프론트의 타입 이름)
 
 | 용도 | Pydantic 클래스 이름 |
 |---|---|
-| 공통 | `Stats`, `InventoryItem`, `Resources`, `WorldState`, `DiceCheck`, `StatePatch`, `ErrorResponse` |
-| 2~3장 | `Me`, `GameRules` |
-| 4장 | `Character`, `CharacterCreateRequest` |
-| 5장 | `Scenario` |
-| 6장 | `SessionCreateRequest`, `SessionDetail`, `SessionListItem`, `Turn`, `TurnListResponse`, `SessionEndResponse` |
-| 7장 | `ActionRequest`, `TurnStartedData`, `NarrationDeltaData`, `SuggestionsData`, `TurnCompletedData`, `SseErrorData`, `SseEventCatalog` |
+| 공통 | `PremiseItem`, `Premise`, `Mood`, `MoodPoint`, `Person`, `StoryState`, `Choice`, `AttitudeCount`, `ErrorResponse` |
+| 2~3장 | `Me`, `OnboardingOptions`, `OnboardingField`, `OnboardingPreset`, `AttitudeInfo` |
+| 4장 | `SessionCreateRequest`, `SessionDetail`, `SessionListItem`, `Turn`, `TurnListResponse` |
+| 5장 | `PrologueRequest`, `ActionRequest`, `EpilogueRequest`, `SessionState`, `TurnStartedData`, `NarrationDeltaData`, `TurnCompletedData`, `SseErrorData`, `SseEventCatalog` |
 
-- 코드값(능력치·직업·난이도·결과·세션 상태)은 `Literal[...]`로 정의합니다. → 프론트에서 `"charm" | "will" | ...` 같은 정확한 타입이 됩니다.
+- 코드값(태도·턴 종류·입력 방식·이야기 상태·`flavor_code`)은 `Literal[...]`로 정의합니다. → 프론트에서 `"endure" | "avoid" | ...` 같은 정확한 타입이 됩니다.
 - `FastAPI(..., separate_input_output_schemas=False)`로 생성합니다.
-  (안 하면 같은 모델이 `Character-Input` / `Character-Output` 두 개로 쪼개져 이름표가 깨질 수 있음)
+  (안 하면 같은 모델이 `Premise-Input` / `Premise-Output` 두 개로 쪼개져 이름표가 깨질 수 있음)
 
 ---
 
-## 9. CORS 설정 (백엔드)
+## 7. CORS 설정 (백엔드)
 
 ```python
 allow_origins = settings.cors_origins   # 환경변수 CORS_ORIGINS (쉼표로 구분)
@@ -577,14 +532,10 @@ allow_headers = ["*"]
 ---
 
 ## 변경 이력
-- 2026-09-10: 최초 작성 (아키텍처 세션)
-- 2026-09-11: 설계 보완 (아키텍처 세션)
-  - 추가: 에러 코드 전체 목록, 남의 리소스는 404 규칙, FastAPI 전역 예외 처리기 필수, 응답 키 생략 금지 규칙
-  - 추가: `GET /api/v1/meta/game-rules`, 캐릭터 `effective_stats`·`has_active_session`, `/me`의 `email`
-  - 추가: 세션 `max_turns`·`last_suggestions`·`updated_at`, 세션 목록 `status` 필터 값(ongoing/ended/all), 턴 기록 페이지 규칙
-  - 변경: 캐릭터 삭제 → soft delete, 캐릭터 1명당 진행 중 세션 1개(409 `CHARACTER_IN_USE`), 초기 소지금 예시 500,000 → 300,000(02번 문서와 일치)
-  - 추가(7장): 검사 순서, `client_action_id` 상황표, 재생 스트림, SSE 전송 형식, heartbeat, 실패 턴 처리, 연결 끊김 처리
-  - 변경(7장): `state_patch`를 `StatePatch` 고정 모양으로 확정(인벤토리 변화 포함), `dice_roll`·`state_patch`를 턴 기록과 같은 모델로 통일
-  - 추가(8장): SSE 타입 자동 생성(문서 전용 엔드포인트), 모델 이름표, `separate_input_output_schemas=False`, `gen:api` 스크립트
-  - 변경(9장): CORS 허용 주소를 환경변수로, `allow_credentials=False`
-  - 목차 번호 변경: 3장(게임 규칙표) 신설로 캐릭터 3→4장, 시나리오 4→5장, 세션 5→6장, 행동 6→7장, 타입 7→8장, CORS 8→9장
+- 2026-09-10: 최초 작성 (아키텍처 세션) — 주사위 TRPG 기준
+- 2026-09-11: 설계 보완 (아키텍처 세션) — 에러 코드 목록, 멱등성 상황표, heartbeat, SSE 타입 자동 생성 등
+- 2026-09-11: **전면 재작성** (아키텍처 세션) — `GAME_CONCEPT.md`(여백) 반영
+  - 제거: 캐릭터·시나리오·게임 규칙표 API, 주사위·상태 패치 이벤트
+  - 추가: 온보딩 옵션 API, 이야기 만들기(온보딩 제출), 목록(이어 쓰는 중 / 여백의 서재), 이야기 지우기
+  - 변경: AI 글쓰기를 프롤로그 / 행동(선택지·직접 입력) / 에필로그 3개 스트림으로. 공통 SSE 이벤트를 4종(turn_started, narration_delta, turn_completed, error)으로 축소하고 `turn_completed`에 저장된 턴 전체 + 이야기 상태를 담음
+  - 에러 코드 정리: `CONTENT_NOT_ALLOWED`, `PROLOGUE_REQUIRED`, `SESSION_ALREADY_COMPLETED`, `TURN_LIMIT_REACHED`, `EPILOGUE_NOT_ALLOWED_YET` 추가
